@@ -106,8 +106,43 @@ def group_ops(opcode_list: list[OPCODE]) -> Program:
 
     return program_buf[1:]
 
-def compile_program(program: Program) -> None:
+def compile_program(program: Program, output_path: Path) -> None:
     assert False, "Not Implemented"
+    
+    program_buf: str = ""
+    loop_counter: list[int] = [0]
+    for opcode in program:
+        match current_opcode[0]:
+            case OPCODE.INC: 
+                program_buf.append(f"\tadd r8d {opcode[1]}\n")
+            case OPCODE.DEC:
+                probram_buf.append(f"\tsub r8d {opcode[1]}\n")
+            case OPCODE.ADD:
+                program_buf.append(f"\tadd stack[r8d], {opcode[1]}\n")
+            case OPCODE.SUB:
+                program_buf.append(f"\tsub stack[r8d], {opcode[1]}\n")
+            case OPCODE.BLOOP:
+                loop_counter[0] += 1
+                program_buf.append(f"_wloop{loop_counter[0]}:\n")
+                #compile_opcode(opcode[1], program_buf, loop_counter)
+                program_buf.append(f"\tcmp stack[r8d], 0\n")
+                program_buf.append(f"\tjne _wloop{loop_counter[0]}\n")
+            case OPCODE.OUTPUT:
+                for _ in opcode[1]:
+                    program_buf.append(f"\t_outputOP stack[r8d]\n")
+            case OPCODE.INPUT:
+                assert False, "Not Implemented"
+            case OPCODE.BSYSCALL:
+                assert False, "Not Implemented"
+            case OPCODE.ESYSCALL:
+                assert False, "Not Implemented"
+
+            case _:
+                assert False, "WTF??"
+
+    with open(output_path: Path) as p:
+        try: p.write(program_buf)
+        except Exception as e: raise Exception(f"File Error: {e}")
 
 def simulate_opcode(opcode: OpcodePair, stack_counter: StackCounter, stack: Stack) -> None:
     """
