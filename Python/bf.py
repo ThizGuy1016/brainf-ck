@@ -2,6 +2,8 @@
 from enum import IntEnum, unique, auto
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any 
+import argparse
 import sys
 
 STACK_MAX: int = 30000
@@ -20,7 +22,7 @@ class OPCODE(IntEnum):
     ESYSCALL=auto()
     NOOP=auto()
 
-OPCODE_PAIR: dict[chr, OPCODE] = {
+OPCODE_PAIR: dict[str, OPCODE] = {
     '>': OPCODE.INC,
     '<': OPCODE.DEC,
     '+': OPCODE.ADD,
@@ -36,7 +38,7 @@ OPCODE_PAIR: dict[chr, OPCODE] = {
 assert len(OPCODE_PAIR) == len(OPCODE) - 1, "Non exhaustive handiling of opcodes while parsing."
 
 OpAmount = int
-OpcodePair = tuple[OPCODE, OpAmount] # OP_Amount can also be a 
+OpcodePair = tuple[OPCODE, Any] # OP_Amount can be int or tuples of other opcodes 
 Program = list[OpcodePair]
 Stack = list[int]
 StackCounter = list[int]
@@ -72,7 +74,7 @@ def group_ops_recurs(opcode_list: list[OPCODE], program_buf: Program, program_co
             return
 
         if current_opcode == OPCODE.BLOOP:
-            bloop_amount: Program = [(0, 0)]
+            bloop_amount: Program = [(OPCODE.NOOP, 0)]
             program_counter[0] += 1
             
             group_ops_recurs(opcode_list, bloop_amount, program_counter, lambda x: x == OPCODE.ELOOP)
@@ -80,8 +82,6 @@ def group_ops_recurs(opcode_list: list[OPCODE], program_buf: Program, program_co
             try: del opcode_list[program_counter[0]] # removes the ending delimeter
             except: assert False, "Unmatched closing delimeter for '['"
             
-            #if len(bloop_amount[1:]) > 1: 
-            #    bloop_amount.append((OPCODE.NOOP, 1))
             program_buf.append((OPCODE.BLOOP, tuple(bloop_amount[1:])))
 
         # increase opcode amount if last opcode == current_opcode
@@ -99,7 +99,7 @@ def group_ops(opcode_list: list[OPCODE]) -> Program:
     An optimization step to group identical opcodes into an opcode amount.
     """
 
-    program_buf: Program = [(0, 0)]
+    program_buf: Program = [(OPCODE.NOOP, 0)]
     program_counter: list[int] = [0]
     for _ in enumerate(opcode_list):
         group_ops_recurs(opcode_list, program_buf, program_counter, lambda x: False)
@@ -170,13 +170,42 @@ def simulate_program(program: Program) -> None:
 
         simulate_opcode(opcode, stack_counter, stack)
 
-def main() -> None:
-    program_path = Path('hello.bf')
-    program = parse_program(program_path)
-    program = lex_program(program)
-    program = group_ops(program)
+def parse_args() -> tuple[Path, bool, bool, bool]:
 
-    simulate_program(program)
+    parser = argparse.ArgumentParser(description="Brainfuck interpereter and compiler")
+    parser.add_argument("run_type", type=str, nargs='?', help="Option to compile 'com', or simulate 'sim', the Brainfuck program")
+    parser.add_argument("path", type=str, nargs='?', help="Path to the Brainfuck program")
+    parser.add_argument("-v", "--verbose", action="store_true", required=False, help="Sets the verbosity level of the program")
+    try: args = parser.parse_args()
+    except argparse.ArgumentError as e: raise argparse.ArgumentError(None, message = f"Command-Line args Error: {e}")
+
+    simu: bool = False
+    comp: bool = False
+    verbose: bool = False
+
+    if args.verbose: verbose = True
+
+    if args.run_type == "sim": simu = True
+    elif args.run_type == "com": comp = True
+    else: raise Exception("Invalid run-type provided.")
+
+    return (Path(args.path), simu, comp, verbose)
+
+def main() -> None:
+
+    program_path, simu, comp, verbose = parse_args()
+
+    # I'll make this more functional later
+    program: Program = group_ops(lex_program(parse_program(program_path)))
+
+    if simu: 
+        if verbose:
+            print(f"[INFO] Simulating program: {program_path}")
+        simulate_program(program)
+    if comp: 
+        if verbose:
+            print(f"[INFO] Compiling program: {program_path}")
+        compile_program(program)
 
 if __name__ == "__main__":
     try: main()
