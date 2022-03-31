@@ -115,19 +115,12 @@ def simulate_opcode(opcode: OpcodePair, stack_counter: StackCounter, stack: Stac
     """
 
     match opcode[0]:
-        case OPCODE.INC:
-            #print(f"Incrementing: {opcode[1]}")
-            stack_counter[0] += opcode[1]
-        case OPCODE.DEC:
-            #print(f"Decrementing: {opcode[1]}")
-            stack_counter[0] -= opcode[1]
+
+        case OPCODE.INC: stack_counter[0] += opcode[1]
+        case OPCODE.DEC: stack_counter[0] -= opcode[1]
         
-        case OPCODE.ADD:
-            #print(f"Adding: {opcode[1]}")
-            stack[stack_counter[0]] += opcode[1]
-        case OPCODE.SUB: 
-            #print(f"Subbing: {opcode[1]}")
-            stack[stack_counter[0]] -= opcode[1]
+        case OPCODE.ADD: stack[stack_counter[0]] += opcode[1]
+        case OPCODE.SUB: stack[stack_counter[0]] -= opcode[1]
         
         case OPCODE.BLOOP:
 
@@ -148,7 +141,8 @@ def simulate_opcode(opcode: OpcodePair, stack_counter: StackCounter, stack: Stac
                 print(chr(stack[stack_counter[0]]),end='')
                 pass
 
-        case OPCODE.BSYSCALL: assert False, "Not Implemented"
+        case OPCODE.BSYSCALL: assert False, "Syscalls are not yet Implemented"
+        case OPCODE.ESYSCALL: assert False, "Syscalls are not yet Implemented"
         
         case OPCODE.NOOP: 
             for _ in range(opcode[1]):
@@ -210,3 +204,6 @@ def main() -> None:
 if __name__ == "__main__":
     try: main()
     except KeyboardInterrupt: exit(0)
+    except Exception as e: 
+        print(f"[ERROR]: {e}")
+        exit()
