@@ -140,9 +140,9 @@ def compile_program(program: Program, output_path: Path) -> None:
             case _:
                 assert False, "WTF??"
 
-    with open(output_path: Path) as p:
-        try: p.write(program_buf)
-        except Exception as e: raise Exception(f"File Error: {e}")
+    #with open(output_path: Path) as p:
+        #try: p.write(program_buf)
+        #except Exception as e: raise Exception(f"File Error: {e}")
 
 def simulate_opcode(opcode: OpcodePair, stack_counter: StackCounter, stack: Stack) -> None:
     """
