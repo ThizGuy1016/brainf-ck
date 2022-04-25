@@ -1,8 +1,8 @@
 #! /bin/env python3.10
 
 from typing import AnyStr, Mapping, Generator, Callable
-from enum import Enum, unique, auto
 from collections.abc import Sequence
+from enum import Enum, unique, auto
 from pathlib import Path
 import sys
 
@@ -13,7 +13,7 @@ class OPCODE(Enum):
     SUB=auto()
     BLOOP=auto()
     ELOOP=auto()
-    NOOP=auto()
+    NO_OP=auto()
 
 OPCODE_DICT: Mapping[str, OPCODE] = {
     '>': OPCODE.INC,
@@ -27,10 +27,8 @@ OPCODE_DICT: Mapping[str, OPCODE] = {
 assert len(OPCODE_DICT) == len(OPCODE) - 1, "Non-exhaustive handling of opcodes while parsing."
 
 OpAmount = int
-LexedOpcodes = list[tuple[Path, int, int, OPCODE]]
-OpcodePair = tuple[OPCODE, int]
-GroupedOpcodes = list[tuple[Path, int, int, OpcodePair]]
-Program = list[OpcodePair]
+OpcodePair = tuple[OPCODE, OpAmount]
+Program = list[tuple[Path, int, int, OpcodePair]]
 ProgramMem = list[int]
 ProgramCounter = list[int]
 
@@ -47,7 +45,7 @@ def lex_char(line: str, opcode_dict: Mapping[str, OPCODE], delim: str = ' ') -> 
             yield (col, opcode_dict[tok])
 
 # thank you zozek
-def lex_file(file: Path, opcode_dict: Mapping[str, OPCODE], delim: str = ' ') -> LexedOpcodes: 
+def lex_file(file: Path, opcode_dict: Mapping[str, OPCODE], delim: str = ' ') -> Program: 
     expr: Callable[[str, Mapping[str, OPCODE], str], Generator[tuple[int, OPCODE], None, None]] = lex_char 
     
     for key in opcode_dict:
@@ -56,72 +54,50 @@ def lex_file(file: Path, opcode_dict: Mapping[str, OPCODE], delim: str = ' ') ->
             break
     
     with open(file, 'r') as p:
-        return [(file, row, col, tok) for (row, line) in enumerate(p.readlines())
-                                      for (col, tok) in expr(line, opcode_dict, delim)]
+        return [(file, row, col, (tok, 1)) for (row, line) in enumerate(p.readlines())
+                                           for (col, tok) in expr(line, opcode_dict, delim)]
 
-def process_loop(program: Program) -> Program:
-    while idx <= len(program_opcodes):
-        if idx >= len(program_opcodes): return grouped_buf[1:]
-        
-        current_opcode = program_opcodes[idx][3]
-        
-        # handles while loops
-        if current_opcode is OPCODE.BLOOP:
+def process_loop(program: Program) -> None:
+    """
+    Iterates over a program and gives each loop OPCODE an index to the end loop
+    """
+    idx: int = 0
+    while idx < len(program):
+               
+        if program[idx][3][0] is OPCODE.BLOOP:
+ 
+            bloop_counter: int = idx + 1
+            if bloop_counter == len(program): return 
+            
             recurse_counter: int = 0
-            bloop_idx: int = idx
-            idx += 1
-            if idx == len(program_opcodes):
-                report = program_opcodes[idx]
-                raise Exception(f"Error in '{report[0]}': ({report[1]}, {report[2]})\nUnmatched closing delimeter for '['!")
-            elif program_opcodes[idx][3] is OPCODE.BLOOP: 
-                recurse_counter += 1
-            elif program_opcodes[idx][3] is OPCODE.ELOOP:
-                report = program_opcodes[idx]
-                raise Exception(f"Error in '{report[0]}': ({report[1]}, {report[2]})\nEmpty loops are not allowed!")
-            while program_opcodes[idx][3] is not OPCODE.ELOOP and recurse_counter == 0:
-                if idx == len(program_opcodes):
-                    report = program_opcodes[idx]
-                    raise Exception(f"Error in '{report[0]}': ({report[1]}, {report[2]})\nUnmatched closing delimeter for '['!")
-                elif program_opcodes[idx][3] is OPCODE.BLOOP: 
+ 
+            while program[idx][3][0] is not OPCODE.ELOOP and recurse_counter == 0:
+
+                bloop_opcode: OPCODE = program[idx][3][0]
+                
+                if bloop_counter == len(program): raise Exception("Unmatched in bloop loop")
+                elif bloop_opcode is OPCODE.BLOOP:
                     recurse_counter += 1
-                elif program_opcodes[idx][3] is OPCODE.ELOOP: 
+                elif bloop_opcode is OPCODE.ELOOP: 
                     recurse_counter -= 1
                 idx += 1
 
-            grouped_buf.append((OPCODE.BLOOP, (idx - 1)))
-            idx = bloop_idx + 1
-
-def group_ops(program_opcodes: LexedOpcodes) -> GroupedOpcodes:
-    grouped_buf: list[OpcodePair] = [(program_opcodes[0][0], 0, 0, (OPCODE.NOOP, 0))]
-    idx: int = 0
-
-    while idx < len(program_opcodes):
+            curr: tuple[Path, int, int, OpcodePair] = program[bloop_counter]
+            program[bloop_counter] = (curr[0], curr[1], curr[2], (OPCODE.BLOOP, idx))
         
-        current_opcode = program_opcodes[idx][3]
+        
+            idx = bloop_counter 
 
-        # ignores ending of while loop
-        if current_opcode is OPCODE.BLOOP:
-            grouped_buf.append((program_opcodes[idx][0], program_opcodes[idx][1], program_opcodes[idx][2], ((current_opcode, 1)))
-
-        elif current_opcode is OPCODE.ELOOP:
-            grouped_buf.append((current_opcode, 1))
-
-        # groups last opcodes together by amount
-        elif current_opcode is grouped_buf[-1][0]:
-            grouped_buf[-1] = (current_opcode, grouped_buf[-1][1] + 1)
-            idx += 1
-
-        else:
-            grouped_buf.append((current_opcode, 1))
-            idx += 1
-
-    return grouped_buf[1:]
+def preprocessor(program_opcodes: Program, directives: list[Callable[[Program], None]]) -> Program:
+    for directive in directives:
+        directive(program_opcodes)
+    return program_opcodes
 
 def main() -> None:
     lexed = lex_file(Path("test.bf"), OPCODE_DICT)
     #[print(i) for i in lexed]
-    grouped = group_ops(lexed)
-    [print(i) for i in grouped]
+    program = preprocessor(lexed, [process_loop])
+    [print(i) for i in program]
 
 if __name__ == "__main__":
     try: main()
